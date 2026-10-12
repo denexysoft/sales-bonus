@@ -23,9 +23,7 @@ jobs:
     - name: Get testing lib
       run: set -eu && git clone --depth 1 $REP_TESTS $DIR_TESTS
     - name: Run tests
-      run: |
-        printf '\nmodule.exports.testTimeout = 30000;\n' >> "$DIR_TESTS/jest.config.js"
-        bash "$DIR_TESTS/bin/run.sh"
+      run: bash $DIR_TESTS/bin/run.sh
     - uses: actions/upload-artifact@v4
       if: always()
       with:
