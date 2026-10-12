@@ -5,7 +5,9 @@
  * @returns {number}
  */
 function calculateSimpleRevenue(purchase, _product) {
-   // @TODO: Расчет выручки от операции
+    // @TODO: Расчет выручки от операции
+    const discount = 1 - purchase.discount / 100;
+    return purchase.sale_price * purchase.quantity * discount;
 }
 
 /**
@@ -17,6 +19,15 @@ function calculateSimpleRevenue(purchase, _product) {
  */
 function calculateBonusByProfit(index, total, seller) {
     // @TODO: Расчет бонуса от позиции в рейтинге
+    if (index === 0) {
+        return seller.profit * 0.15;
+    } else if (index === 1 || index === 2) {
+        return seller.profit * 0.1;
+    } else if (index === total - 1) {
+        return 0;
+    } else {
+        return seller.profit * 0.05;
+    }
 }
 
 /**
@@ -27,18 +38,87 @@ function calculateBonusByProfit(index, total, seller) {
  */
 function analyzeSalesData(data, options) {
     // @TODO: Проверка входных данных
+    if (!data || typeof data !== 'object') {
+        throw new Error('Данные должны быть объектом');
+    }
+
+    ['sellers', 'products', 'purchase_records'].forEach(field => {
+        if (!Array.isArray(data[field]) || data[field].length === 0) {
+            throw new Error(`Поле ${field} должно быть непустым массивом`);
+        }
+    });
 
     // @TODO: Проверка наличия опций
+    if (!options || typeof options !== 'object') {
+        throw new Error('Опции должны быть объектом');
+    }
+
+    const { calculateRevenue, calculateBonus } = options;
+    if (typeof calculateRevenue !== 'function' || typeof calculateBonus !== 'function') {
+        throw new Error('Опции calculateRevenue и calculateBonus должны быть функциями');
+    }
 
     // @TODO: Подготовка промежуточных данных для сбора статистики
+    const sellerStats = data.sellers.map(seller => ({
+        id: seller.id,
+        name: `${seller.first_name} ${seller.last_name}`,
+        revenue: 0,
+        profit: 0,
+        sales_count: 0,
+        products_sold: {}
+    }));
 
     // @TODO: Индексация продавцов и товаров для быстрого доступа
+    const sellerIndex = Object.fromEntries(sellerStats.map(seller => [seller.id, seller]));
+    const productIndex = Object.fromEntries(data.products.map(product => [product.sku, product]));
 
     // @TODO: Расчет выручки и прибыли для каждого продавца
+    data.purchase_records.forEach(record => {
+        if (!Object.hasOwn(sellerIndex, record.seller_id)) {
+            throw new Error(`Неизвестный продавец: ${record.seller_id}`);
+        }
+
+        const seller = sellerIndex[record.seller_id];
+        seller.sales_count += 1;
+        seller.revenue += record.total_amount;
+
+        record.items.forEach(item => {
+            if (!Object.hasOwn(productIndex, item.sku)) {
+                throw new Error(`Неизвестный товар: ${item.sku}`);
+            }
+
+            const product = productIndex[item.sku];
+            const cost = product.purchase_price * item.quantity;
+            const revenue = calculateRevenue(item, product);
+            seller.profit += revenue - cost;
+
+            if (!Object.hasOwn(seller.products_sold, item.sku)) {
+                seller.products_sold[item.sku] = 0;
+            }
+            seller.products_sold[item.sku] += item.quantity;
+        });
+    });
 
     // @TODO: Сортировка продавцов по прибыли
+    sellerStats.sort((firstSeller, secondSeller) => secondSeller.profit - firstSeller.profit);
 
     // @TODO: Назначение премий на основе ранжирования
+    sellerStats.forEach((seller, index) => {
+        seller.bonus = calculateBonus(index, sellerStats.length, seller);
+        seller.top_products = Object.entries(seller.products_sold)
+            .map(([sku, quantity]) => ({ sku, quantity }))
+            .sort((firstProduct, secondProduct) => secondProduct.quantity - firstProduct.quantity)
+            .slice(0, 10);
+    });
 
     // @TODO: Подготовка итоговой коллекции с нужными полями
+    return sellerStats.map(seller => ({
+        seller_id: seller.id,
+        name: seller.name,
+        revenue: +seller.revenue.toFixed(2),
+        profit: +seller.profit.toFixed(2),
+        sales_count: seller.sales_count,
+        top_products: seller.top_products,
+        bonus: +seller.bonus.toFixed(2)
+    }));
 }
