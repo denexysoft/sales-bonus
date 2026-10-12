@@ -23,7 +23,10 @@ jobs:
     - name: Get testing lib
       run: set -eu && git clone --depth 1 $REP_TESTS $DIR_TESTS
     - name: Run tests
-      run: bash $DIR_TESTS/bin/run.sh
+      run: |
+        npm ci --prefix "$DIR_TESTS"
+        cd "$DIR_TESTS"
+        npm run test -- --testTimeout=30000
     - uses: actions/upload-artifact@v6
       if: always()
       with:
